@@ -97,9 +97,9 @@ export function sectionNavigation(
 
 export async function renderSectionSettings(view: Dashboard, parent: HTMLElement) {
   const state = await view.plugin.store.inspect('sections', 'active');
-  const card = parent.createDiv({ cls: 'lp-card lp-section-settings' });
+  const card = parent.createEl('details', { cls: 'lp-card lp-disclosure lp-section-settings' });
+  card.createEl('summary', { text: '学习栏目与每周目标' });
   const head = card.createDiv({ cls: 'lp-section-head' });
-  head.createEl('h2', { text: '学习栏目' });
   if (state.issues.length || state.heads.length > 1) {
     card.createEl('p', { cls: 'lp-error', text: '请先在下方处理栏目修订冲突。' });
     return;
@@ -108,14 +108,18 @@ export async function renderSectionSettings(view: Dashboard, parent: HTMLElement
   const layout: Sections = revision?.data ?? { custom: [], children: [] };
   const week = monday(lifeDate());
   const main = [...subjects, ...layout.custom.map(item => item.id)].map(id => ({ id, name: sectionLabel(layout, id) }));
-  card.createEl('p', { cls: 'lp-muted', text: '目标和满分从本周生效。在周计划查看栏目得分，每日学习仍按 45 分量规结算。' });
+  card.createEl('p', { cls: 'lp-muted', text: '每周目标和分数都可留空。修改从本周起生效。' });
   const edit = (parent?: SectionKey, item?: { id: string; name: string }) => {
     const label = parent ? '子栏目' : '主栏目';
     const goal = item && sectionTarget(layout, item.id, week);
     view.form((item ? '编辑' : '新增') + label, f => {
       f.text('name', label + '名称', item?.name, true).maxLength = 48;
-      f.stepper('minutes', '每周目标分钟（0 为不设目标）', goal?.minutes ?? 0, { max: 10080, jumps: [15, 60] });
-      f.stepper('points', '栏目满分', goal?.points ?? 0, { max: 100, jumps: [5, 10] });
+      f.details('每周目标与分数（选填）', () => {
+        f.stepper('minutes', '每周目标分钟', goal?.minutes ?? 0, { max: 10080, jumps: [15, 60] });
+        f.info('按任务的计划分钟 × 完成比例累计，含子栏目。设为 0 即不设目标。');
+        f.stepper('points', '栏目满分', goal?.points ?? 0, { max: 100, jumps: [5, 10] });
+        f.info('达到一半目标就得一半分，达到目标即满分。设为 0 时只看进度。栏目分独立于每日评分。');
+      });
     }, async f => {
       const name = sectionName.parse(f.value('name'));
       const peers = parent ? subsections(layout, parent) : main;
@@ -143,7 +147,7 @@ export async function renderSectionSettings(view: Dashboard, parent: HTMLElement
     const title = line.createDiv();
     title.createEl('strong', { text: item.name });
     const goal = sectionTarget(layout, item.id, week);
-    if (goal?.minutes) title.createDiv({ cls: 'lp-muted', text: `每周 ${goal.minutes} 分钟 · 满分 ${goal.points}` });
+    if (goal?.minutes) title.createDiv({ cls: 'lp-muted', text: `每周 ${goal.minutes} 分钟${goal.points ? ' · 满分 ' + goal.points : ''}` });
     button(line, '编辑', () => edit(parent, item), 'pencil').setAttribute('aria-label', '编辑' + item.name);
     if (!parent) button(line, '新增子栏目', () => edit(item.id), 'plus').setAttribute('aria-label', '为' + item.name + '新增子栏目');
     return line;

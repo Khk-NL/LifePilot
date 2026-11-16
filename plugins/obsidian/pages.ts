@@ -1,5 +1,5 @@
 import { Notice } from 'obsidian';
-import { categories, defaultRubric, entities, goal, rubric, subject, subjectNames, uid, Week } from '../../packages/core/model';
+import { categories, defaultRubric, entities, goal, rubric, Rubric, subject, subjectNames, uid, Week } from '../../packages/core/model';
 import { newWeek } from '../../packages/core/planning';
 import { dailyScore, history, report, sectionProgress, weekly } from '../../packages/core/reports';
 import { importWeek, weekImportPrompt } from '../../packages/core/week-import';
@@ -70,7 +70,11 @@ export async function renderWeek(view: Dashboard, parent: HTMLElement) {
       ?? sectionLabel(layout.data, selected.section);
     card.createEl('strong', { text: name + ' · 本周目标' });
     card.createDiv({ cls: 'lp-muted', text: `${num(progress.done)} / ${progress.target} 成果折算分钟` });
-    if (progress.max) card.createDiv({ text: `栏目得分 ${num(progress.points)} / ${progress.max}` });
+    if (progress.max) {
+      const details = card.createEl('details', { cls: 'lp-disclosure' });
+      details.createEl('summary', { text: '查看栏目得分' });
+      details.createDiv({ text: `栏目得分 ${num(progress.points)} / ${progress.max}` });
+    }
   }
   const s = subject.safeParse(view.weekSection.section).data;
   if (s && !view.weekSection.subsection) {
@@ -134,14 +138,18 @@ export async function renderReports(view: Dashboard, parent: HTMLElement) {
       for (const [label, step] of [['上一周', -7], ['下一周', 7]] as const)
         button(nav, label, () => { view.date = shift(date, step); view.run(() => view.render()); }, step < 0 ? 'chevron-left' : 'chevron-right');
     }
-    card.createEl('p', { cls: 'lp-muted', text: `${value.count} 个记录日 · 完整结算均分 ${value.average === null ? '暂无' : num(value.average)}` });
+    card.createEl('p', { cls: 'lp-muted', text: `${value.count} 个记录日` });
     card.createDiv({ text: `学习 ${value.actual} 分钟 · 睡眠 ${value.sleep} 分钟` });
     if (value.trainingDays || value.recoveryDays)
       card.createDiv({ text: `训练 ${value.trainingDone}/${value.trainingDays} 天 · 恢复日 ${value.recoveryDays} 天` });
     if (value.exercise) card.createDiv({ text: `旧记录健身 ${value.exercise} 分钟` });
     if (unavailable.length) card.createEl('p', { cls: 'lp-error', text: '报告暂不包含 ' + unavailable.join('、') });
+    if (!value.trend.length) continue;
+    const scores = card.createEl('details', { cls: 'lp-disclosure' });
+    scores.createEl('summary', { text: '查看分数趋势' });
+    if (value.average !== null) scores.createDiv({ cls: 'lp-muted', text: '完整结算日的平均分 ' + num(value.average) });
     for (const point of value.trend) {
-      const row = card.createDiv({ cls: 'lp-trend' });
+      const row = scores.createDiv({ cls: 'lp-trend' });
       row.createSpan({ text: point.date.slice(5) });
       const bar = row.createEl('meter', { attr: { min: '0', max: String(point.possible), 'aria-label': point.date + ' 分数' } });
       bar.value = point.score;
@@ -157,9 +165,10 @@ export async function renderReports(view: Dashboard, parent: HTMLElement) {
 export async function renderData(view: Dashboard, parent: HTMLElement) {
   const { store, preferences } = view.plugin;
   await renderSectionSettings(view, parent);
-  const header = parent.createDiv({ cls: 'lp-card' });
-  header.createEl('h2', { text: '数据与同步' });
-  header.createEl('p', { text: 'Fast Note Sync 负责文件同步。这里展示本地观察结果，服务器状态请查看 FNS 状态栏。', cls: 'lp-muted' });
+  await renderScoreSettings(view, parent);
+  const header = parent.createEl('details', { cls: 'lp-card lp-disclosure' });
+  header.createEl('summary', { text: '提醒、备份与同步' });
+  header.createEl('p', { text: '查看跨设备同步状态，请打开 Fast Note Sync。', cls: 'lp-muted' });
   header.createDiv({ text: '本次运行最近变化 · ' + (preferences.lastChange ? localInput(preferences.lastChange).replace('T', ' ') : '暂无') });
   const actions = header.createDiv({ cls: 'lp-actions' });
   button(actions, '检查本地数据', () => view.run(() => view.render()), 'refresh-cw');
@@ -182,38 +191,8 @@ export async function renderData(view: Dashboard, parent: HTMLElement) {
     await view.render();
   }), 'bell');
 
-  const active = await store.inspect('rubric', 'active');
-  const settings = parent.createDiv({ cls: 'lp-card' });
-  settings.createEl('h2', { text: '评分量规' });
-  const current = active.heads[0];
-  const configurable = current?.data.digital.length === 3 ? current.data : defaultRubric;
-  settings.createEl('p', { cls: 'lp-muted', text: '当前量规 · ' + (current?.data.name ?? defaultRubric.name) + '。保存新版本后，仅新生成的生活日使用。' });
-  if (active.heads.length <= 1 && !active.issues.length) button(settings, '配置新量规版本', () => view.form('配置新量规版本', f => {
-    const data = configurable;
-    f.info('保存前会检查各项最高分之和为 100，且分档由高到低。');
-    f.text('name', '版本名称', data.name, true);
-    for (const [key, title] of Object.entries(rubricLabels) as [RubricKey, string][]) {
-      const value = data[key];
-      const timing = /Delay|Limit|Grace/.test(key);
-      const opts = timing ? { max: 1440, jumps: [5, 30] } : { max: 100, step: 0.1, jumps: [1, 5] };
-      if (Array.isArray(value)) f.details(title, () => value.forEach((part, i) =>
-        f.stepper(key + i, (rubricParts[key]?.[i] ?? '第 ' + (i + 1) + ' 档'), part, opts)));
-      else f.stepper(key, title, value, opts);
-    }
-  }, async f => {
-    const data: Record<string, unknown> = { name: f.value('name') };
-    for (const key of Object.keys(rubricLabels) as RubricKey[]) {
-      const value = configurable[key];
-      data[key] = Array.isArray(value) ? value.map((_, i) => f.number(key + i)) : f.number(key);
-    }
-    const parsed = rubric.parse(data);
-    if (parsed.digital.length !== 3) throw Error('请填写最终量规的三个数字生活与计划复盘分项');
-    if (parsed.name === (current?.data ?? defaultRubric).name) throw Error('请给量规填写新的版本名称');
-    await store.save('rubric', 'active', parsed, current ? [current.id] : []);
-  }), 'sliders-horizontal');
-
-  const conflict = parent.createDiv({ cls: 'lp-card' });
-  conflict.createEl('h2', { text: '待处理的修订' });
+  const conflict = header.createEl('details', { cls: 'lp-disclosure' });
+  const conflictLabel = conflict.createEl('summary', { text: '查看同步冲突' });
   let count = 0;
   for (const kind of Object.keys(entities) as (keyof typeof entities)[]) {
     for (const key of await store.keys(kind)) {
@@ -234,10 +213,81 @@ export async function renderData(view: Dashboard, parent: HTMLElement) {
     }
   }
   if (!count) conflict.createEl('p', { cls: 'lp-muted', text: '当前未发现冲突或缺失的父修订。' });
+  else {
+    conflictLabel.setText(`同步冲突（${count} 项待处理）`);
+    header.open = conflict.open = true;
+  }
+}
+
+async function renderScoreSettings(view: Dashboard, parent: HTMLElement) {
+  const { store } = view.plugin;
+  const active = await store.inspect('rubric', 'active');
+  const settings = parent.createEl('details', { cls: 'lp-card lp-disclosure lp-score-settings' });
+  settings.createEl('summary', { text: '每日评分怎么计算' });
+  const current = active.heads[0];
+  const configurable = current?.data.digital.length === 3 ? current.data : defaultRubric;
+  const rule = current?.data ?? defaultRubric;
+  settings.createEl('p', { cls: 'lp-muted', text: '想记哪项就记哪项。分数供回顾时参考，未记的项目会标为「未记录」。' });
+  const list = settings.createEl('ul', { cls: 'lp-rule-list' });
+  for (const line of scoreRules(rule)) list.createEl('li', { text: line });
+  settings.createEl('p', { cls: 'lp-muted', text: '睡眠时长和运动只作记录。每周栏目分单独显示。' });
+  if (active.heads.length > 1 || active.issues.length) return;
+  const advanced = settings.createEl('details', { cls: 'lp-disclosure' });
+  advanced.createEl('summary', { text: '自定义每日评分' });
+  advanced.createEl('p', { cls: 'lp-muted', text: '各项满分合计 100。改动仅用于之后新建的记录。' });
+  button(advanced, '编辑分值和分档', () => view.form('编辑每日评分', f => {
+    const data = configurable;
+    f.info('保存前会检查各项最高分之和为 100，且分档由高到低。');
+    f.text('name', '版本名称', data.name, true);
+    f.info('名称用于识别这套分值。旧记录仍按各自保存的规则计算。');
+    for (const [key, title] of Object.entries(rubricLabels) as [RubricKey, string][]) {
+      const value = data[key];
+      const timing = /Delay|Limit|Grace/.test(key);
+      const opts = timing ? { max: 1440, jumps: [5, 30] } : { max: 100, step: 0.1, jumps: [1, 5] };
+      if (Array.isArray(value)) f.details(title, () => {
+        if (timing) f.info('用于有时间戳的记录。每日点选使用表单里显示的档位。');
+        value.forEach((part, i) => f.stepper(key + i, (rubricParts[key]?.[i] ?? '第 ' + (i + 1) + ' 档'), part, opts));
+      });
+      else {
+        f.stepper(key, title, value, opts);
+        if (timing) f.info('用于有时间戳的记录。');
+        else f.info('按任务的计划分钟加权，实际用时仅供回顾。');
+      }
+    }
+  }, async f => {
+    const data: Record<string, unknown> = { name: f.value('name') };
+    for (const key of Object.keys(rubricLabels) as RubricKey[]) {
+      const value = configurable[key];
+      data[key] = Array.isArray(value) ? value.map((_, i) => f.number(key + i)) : f.number(key);
+    }
+    const parsed = rubric.parse(data);
+    if (parsed.digital.length !== 3) throw Error('请填写最终量规的三个数字生活与计划复盘分项');
+    if (parsed.name === (current?.data ?? defaultRubric).name) throw Error('请给量规填写新的版本名称');
+    await store.save('rubric', 'active', parsed, current ? [current.id] : []);
+  }), 'sliders-horizontal');
+}
+
+function scoreRules(r: Rubric) {
+  const [messages, chat, scrolling] = r.digital;
+  const [morning, evening, journal] = r.planning;
+  return [
+    `睡眠 ${r.bedtimePoints[0] + r.phonePoints[0]} 分。准备休息最多 ${r.bedtimePoints[0]} 分，躺下后少刷手机最多 ${r.phonePoints[0]} 分。`,
+    `行动 ${r.wakePoints[0] + r.leavePoints[0] + r.startPoints[0]} 分。起床、赴约、开始学习分别最多 ${r.wakePoints[0]}、${r.leavePoints[0]}、${r.startPoints[0]} 分。当天无安排可跳过赴约。`,
+    `学习 ${r.learning} 分。按计划分钟加权。例：只安排了 20 分钟且做完一半，可得 ${num(r.learning / 2)} 分。没确认计划时只看固定任务。`,
+    scrolling === undefined ? `数字生活 ${messages + chat} 分。娱乐预算 ${messages} 分，专注时段 ${chat} 分。`
+      : `数字生活 ${messages + chat + scrolling} 分。重要消息 ${messages} 分，聊天边界 ${chat} 分，少刷手机 ${scrolling} 分。`,
+    journal === undefined ? `计划与复盘 ${morning + evening} 分。确认计划 ${morning} 分，复盘 ${evening} 分。`
+      : `计划与复盘 ${morning + evening + journal} 分。确认计划 ${morning} 分，记完当天 ${evening} 分，写日记 ${journal} 分。`
+  ];
 }
 
 type RubricKey = Exclude<keyof typeof defaultRubric, 'name'>;
 const rubricParts: Partial<Record<RubricKey, string[]>> = {
+  bedtimePoints: ['按时或晚约 15 分钟内', '晚约 16–30 分钟', '晚约 31–60 分钟', '晚了约 1 小时以上'],
+  phonePoints: ['没刷', '刷了约 10 分钟以内', '刷了超过约 10 分钟'],
+  wakePoints: ['约 5 分钟内', '超过 5 分钟，约半小时内', '超过约半小时'],
+  leavePoints: ['按时赴约', '出门晚了，赴约没迟到', '迟到或错过'],
+  startPoints: ['计划时间前后约 15 分钟内', '错过计划时间，后来开始了', '当天没开始'],
   digital: ['重要消息', '聊天边界', '无目的刷手机'],
   planning: ['晨间计划', '晚间结算', '日记']
 };

@@ -4,6 +4,7 @@ import { uid } from '../../packages/core/model';
 
 export const ROOT = 'LifePilot';
 export const DATA = ROOT + '/Data';
+const STAGING = '.lifepilot-staging';
 
 export async function ensureFolder(adapter: DataAdapter, path: string) {
   let current = '';
@@ -31,7 +32,9 @@ export function vaultFiles(adapter: DataAdapter): Files {
       const destination = DATA + '/' + path;
       await ensureFolder(adapter, dir);
       if (await adapter.exists(destination)) throw Error('该修订已存在，请刷新');
-      const temp = dir + '/' + uid() + '.lifepilot-tmp';
+      // Keep incomplete writes out of the Vault file index and attachment sync.
+      await ensureFolder(adapter, STAGING);
+      const temp = STAGING + '/' + uid() + '.lifepilot-tmp';
       await adapter.write(temp, body);
       try {
         if (await adapter.exists(destination)) throw Error('该修订已存在，请刷新');

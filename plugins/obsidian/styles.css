@@ -24,7 +24,6 @@
 .lp-section-head { justify-content: space-between; margin-bottom: 10px; }
 .lp-section-head :is(h2, p) { margin: 0; }
 .lp-date-nav time { font-size: .92rem; color: var(--text-muted); font-variant-numeric: tabular-nums; padding-inline: 4px; }
-.lp-kicker { font-size: .8rem; font-weight: 650; color: var(--text-muted); margin: 0 0 6px; }
 .lp-muted { color: var(--text-muted); }
 .lp-error { color: var(--text-error); white-space: pre-wrap; overflow-wrap: anywhere; }
 .lp-nav { margin: 20px 0; padding: 6px; border: 1px solid var(--background-modifier-border); border-radius: 14px; background: var(--background-primary); }
@@ -61,6 +60,9 @@
 .lp-trend { display: grid; grid-template-columns: 44px minmax(30px, 1fr) minmax(84px, auto); gap: 8px; align-items: center; margin: 7px 0; font-variant-numeric: tabular-nums; }
 .lp-trend meter { width: 100%; }
 .lp-form { display: grid; gap: 10px; }
+.lp-form .lp-help { margin: 0; font-size: .9em; }
+.lp-rule-list { padding-inline-start: 1.25em; }
+.lp-rule-list li + li { margin-top: 6px; }
 .lp-field { display: grid; gap: 4px; min-width: 0; }
 .lp-field[hidden] { display: none; }
 .lp-card > .lp-score { padding: 0; border: 0; background: transparent; }

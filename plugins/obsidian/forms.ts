@@ -3,7 +3,7 @@ import { categories, kind, Subject, subjectNames, subjects, taskTemplate, Templa
 import { lifeInstant, localInput } from '../../packages/core/time';
 
 export const categoryNames = { knowledge: '知识', practice: '练习', review: '复习' };
-export const kindNames = { course: '网课 / 知识', exercise: '习题', newWords: '英语新词', reviewWords: '英语旧词', newProblem: '力扣新题', recall: '旧题 / 回忆', training: '专项训练' };
+export const kindNames = { course: '网课', exercise: '习题', newWords: '英语新词', reviewWords: '英语旧词', newProblem: '力扣新题', recall: '复习', training: '专项训练' };
 const options = (labels: Record<string, string>, keys = Object.keys(labels)) => keys.map(key => [key, labels[key]] as const);
 export function message(error: unknown) {
   return error instanceof Error ? error.message : String(error);
@@ -55,7 +55,7 @@ export class Form extends Modal {
     });
   }
 
-  info(text: string) { this.form.createEl('p', { cls: 'lp-muted', text }); }
+  info(text: string) { this.container.createEl('p', { cls: 'lp-muted lp-help', text }); }
   pre(text: string) { this.container.createEl('pre', { cls: 'lp-pre', text }); }
 
   details(label: string, build: () => void) {

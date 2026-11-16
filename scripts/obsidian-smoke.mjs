@@ -113,6 +113,28 @@ try {
     if (!state.authenticated) throw Error('FNS loaded: ' + state.loaded + ', authenticated: ' + state.authenticated);
     return true;
   }, 'isolated FNS authentication');
+  if (fns) {
+    await until(() => evaluate('app.plugins.plugins["fast-note-sync"].fileHashManager.isReady()'), 'FNS file tracking ready');
+    await evaluate(`(() => {
+      const sync = app.plugins.plugins['fast-note-sync'].websocket;
+      const send = sync.SendMessage, receive = sync.handleStructuredMessage;
+      window.lifePilotSyncTrace = { messages: [], errors: [] };
+      sync.SendMessage = function (action, item, ...args) {
+        if (item?.path?.endsWith('.lifepilot-tmp')) lifePilotSyncTrace.messages.push(action);
+        return send.call(this, action, item, ...args);
+      };
+      sync.handleStructuredMessage = function (action, item) {
+        if (item?.code === 459) lifePilotSyncTrace.errors.push(item.code);
+        return receive.call(this, action, item);
+      };
+    })()`);
+  }
+  await evaluate(`(() => {
+    window.lifePilotTempEvents = [];
+    for (const event of ['create', 'modify', 'delete', 'rename']) app.vault.on(event, (file, oldPath) => {
+      if ([file.path, oldPath].some(path => path?.endsWith('.lifepilot-tmp'))) lifePilotTempEvents.push(event);
+    });
+  })()`);
   await evaluate('app.plugins.plugins.lifepilot.open("today")');
 
   async function click(label, scope = '.lp-dashboard') {
@@ -164,6 +186,8 @@ try {
   }
 
   await click('数据与设置');
+  await until(() => evaluate('document.querySelector(".lp-score-settings")?.textContent.includes("学习 45 分")'), 'scoring explained next to settings');
+  assert.equal(await evaluate('document.querySelector(".lp-score-settings").open'), false);
   await click('新增主栏目');
   await fill('name', '专题学习');
   await fill('minutes', '60');
@@ -259,6 +283,7 @@ try {
   await save();
   assert.equal(await evaluate('document.querySelector(".lp-task progress")?.value'), 0.7);
   await until(() => evaluate('app.vault.getMarkdownFiles().some(f => f.path.startsWith("LifePilot/Data/day/"))'), 'revision indexed by Obsidian');
+  assert.deepEqual(await evaluate('window.lifePilotTempEvents'), []);
   mcp = new Client({ name: 'lifepilot-obsidian-smoke', version: '1.0.0' });
   await mcp.connect(new StdioClientTransport({
     command: process.execPath, args: [resolve('dist/dsh/main.mjs'), '--root', join(vault, 'LifePilot', 'Data'), '--proposals'],
@@ -353,6 +378,9 @@ try {
       return (await response.json()).data?.content;
     };
     await until(async () => (await getNote(head.name)) === head.body, 'FNS uploaded day revision');
+    assert.deepEqual(await evaluate('window.lifePilotSyncTrace'), { messages: [], errors: [] });
+    assert.equal(await evaluate('app.vault.getAllLoadedFiles().some(f => f.path.includes(".lifepilot-staging"))'), false);
+    console.log('PASS FNS atomic save: Markdown uploaded, no temporary attachment actions or error 459');
     await evaluate('app.plugins.plugins["fast-note-sync"].websocket.unRegister()');
     await until(() => evaluate('!app.plugins.plugins["fast-note-sync"].websocket.isAuth'), 'FNS disconnected');
     await click('记一下今天');

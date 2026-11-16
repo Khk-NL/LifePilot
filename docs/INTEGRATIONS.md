@@ -8,7 +8,7 @@
 2. 在 A 创建计划和成果记录，在 B 同步后检查同一日期和分数。
 3. 断网后在 A/B 修改同一天的不同项目，恢复网络并同步，验证「数据与设置」显示两个修订。选择分支后在另一端再次同步核对。需要保留另一个分支的部分内容时，在保留版本上手动补录。
 4. 恢复版本时优先从备份补回原始文件。FNS 服务自身的笔记历史可辅助排查。避免对修订文件批量回滚或删除。
-5. 可在 FNS 排除 `LifePilot/Exports`、`LifePilot/Journal` 与后缀 `.lifepilot-tmp`，具体取决于希望同步的内容。插件本地设备提醒配置宜保留在设备上。
+5. 可按需要在 FNS 排除 `LifePilot/Exports` 或 `LifePilot/Journal`。LifePilot 1.0.8 起使用 Vault 根目录的隐藏目录 `.lifepilot-staging` 写入临时文件，再发布正式 Markdown。请同步 `LifePilot/Data` 中的正式记录。设备提醒配置宜保留在设备上。
 
 FNS 上游提供 REST 和远程 MCP，可读写笔记与附件，也有历史版本接口。LifePilot 使用 FNS 同步本地文件，不让 DSH 持有 FNS 的通用笔记权限。已验证 Windows 客户端和隔离 FNS 服务之间的往返、断线编辑与冲突合并。正式服务器及手机验收仍需单独完成。可参考 [FNS 客户端](https://github.com/haierkeys/obsidian-fast-note-sync)、[FNS 服务](https://github.com/haierkeys/fast-note-sync-service)和[REST 参考](https://github.com/haierkeys/fast-note-sync-service/blob/master/docs/REST_API.md)。
 

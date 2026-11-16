@@ -17,7 +17,7 @@ const args = parseArgs({
 }).values;
 if (!args.root) throw Error('必须指定 --root <vault>/LifePilot/Data');
 const store = new Store(await nodeFiles(args.root));
-const server = new McpServer({ name: 'lifepilot', version: '1.0.7' });
+const server = new McpServer({ name: 'lifepilot', version: '1.0.8' });
 const onDate = (value?: string) => value ?? lifeDate();
 
 function add<T extends z.ZodRawShape>(name: string, description: string, shape: T, readOnly: boolean,

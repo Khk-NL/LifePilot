@@ -6,7 +6,7 @@ import { completion } from '../../packages/core/scoring';
 import { decide, pending, prepare, validateTimes } from '../../packages/core/service';
 import type { Revision } from '../../packages/core/store';
 import { lifeDate, localInput, monday, shift } from '../../packages/core/time';
-import { button, Form, kindNames, templateFields } from './forms';
+import { button, Form, templateFields } from './forms';
 import type { Dashboard } from './main';
 import { loadSections, placementFields, readPlacedTemplate, readPlacement, sectionLabel, sectionNavigation, subsections } from './sections';
 
@@ -46,9 +46,9 @@ export async function renderDay(view: Dashboard, parent: HTMLElement) {
   button(actions, '记一下今天', () => checkInForm(view, d, update => save(update(d))), 'pen-line').addClass('mod-cta');
   button(actions, '打开日记', () => view.run(() => view.plugin.openJournal(date)), 'book-open');
   const scoreDetails = today.createEl('details', { cls: 'lp-score' });
-  scoreDetails.createEl('summary', { text: '查看五维分项' });
+  scoreDetails.createEl('summary', { text: '查看今日分数' });
   scoreDetails.createEl('strong', { text: num(result.total) + ' / ' + result.possible });
-  if (!result.complete) scoreDetails.createDiv({ cls: 'lp-muted', text: '仅汇总已记录的分项。' });
+  if (!result.complete) scoreDetails.createDiv({ cls: 'lp-muted', text: '暂计已记录的项目。评分说明见「数据与设置」。' });
   for (const entry of result.entries)
     scoreDetails.createDiv({ text: entry.dimension + ' · ' + entry.name + '　' + (entry.points === null ? (entry.applicable ? '未记录' : '不适用') : num(entry.points) + ' / ' + entry.max) });
 
@@ -57,7 +57,7 @@ export async function renderDay(view: Dashboard, parent: HTMLElement) {
   morning.open = view.learningOpen;
   morning.addEventListener('toggle', () => { if (morning.isConnected) view.learningOpen = morning.open; });
   const assigned = d.tasks.filter(t => !t.extra && (t.spec.target || t.fixed === 'reviewWords' && d.reviewBaseline === undefined && !d.original)).reduce((n, t) => n + t.spec.minutes, 0);
-  morning.createDiv({ text: `本周入睡目标 ${d.bedtime} · 学习预计 ${assigned} 分钟${d.routine.availability === undefined ? '' : ' / 可用 ' + d.routine.availability + ' 分钟'}`, cls: 'lp-muted' });
+  morning.createDiv({ text: `学习预计 ${assigned} 分钟${d.routine.availability === undefined ? '' : ' / 可用 ' + d.routine.availability + ' 分钟'}`, cls: 'lp-muted' });
   if (d.routine.availability !== undefined && assigned > d.routine.availability) morning.createDiv({ text: '计划已超出可用时间，建议先精简主攻任务。' });
   if (d.routine.commitments) morning.createDiv({ text: d.routine.commitments });
   const morningActions = morning.createDiv({ cls: 'lp-actions' });
@@ -208,7 +208,7 @@ function newTask(view: Dashboard, d: Daily, save: Save, layout: Sections) {
   view.form(d.original ? '额外学习' : '新增主攻任务', f => {
     const scoringSubject = subject.safeParse(view.learningSection.section).data;
     placementFields(f, layout, templateFields(f, undefined, scoringSubject, !scoringSubject), view.learningSection);
-    if (!d.original) f.tri('cover', '覆盖同科保温', false);
+    if (!d.original) f.tri('cover', '替代本学科的基础任务', false);
   }, async f => {
     const spec = readPlacedTemplate(f);
     await save(addTask(d, spec, { cover: !d.original && f.bool('cover') ? spec.subject : undefined }));
@@ -237,7 +237,7 @@ async function choosePool(view: Dashboard, d: Daily, save: Save, layout: Section
   if (!items.length) throw Error('没有可选的未完成周池任务');
   view.form('从周池选择主攻任务', f => {
     f.select('item', '周池任务', items.map(({ id, spec, progress }) => [id, `${sectionLabel(layout, sectionOf(spec))} · ${spec.title} · ${spec.minutes} 分钟 · 已完成 ${pct(progress)}`]));
-    if (!d.original) f.tri('cover', '覆盖同科保温', false);
+    if (!d.original) f.tri('cover', '替代本学科的基础任务', false);
   }, async f => {
     const item = items.find(t => t.id === f.value('item'))!;
     await save(addTask(d, item.spec, { pool: item.id, cover: !d.original && f.bool('cover') ? item.spec.subject : undefined }));
@@ -248,12 +248,9 @@ async function choosePool(view: Dashboard, d: Daily, save: Save, layout: Section
 function renderTask(view: Dashboard, parent: HTMLElement, d: Daily, task: Task, save: Save, layout: Sections) {
   const { spec } = task;
   const card = parent.createDiv({ cls: 'lp-card lp-task' });
-  const label = card.createDiv({ cls: 'lp-kicker' });
-  const child = subsections(layout, sectionOf(spec)).find(item => item.id === subsectionOf(spec));
-  label.setText([child?.name, kindNames[spec.kind], task.extra ? '额外' : task.fixed ? '固定 / 覆盖' : '主攻'].filter(Boolean).join(' · '));
   card.createEl('h3', { text: spec.title });
-  const status = task.discarded ? '已放弃，保留分母' : task.fixed === 'reviewWords' && !d.original && d.reviewBaseline === undefined ? '请填写初始待复习数'
-    : !spec.target ? '今日不适用' : task.result ? pct(completion(task)) + ' · 已录成果 ' + task.result.units : '待录成果';
+  const status = task.discarded ? '已放弃' : task.fixed === 'reviewWords' && !d.original && d.reviewBaseline === undefined ? '待设置复习词数'
+    : !spec.target ? '今日不适用' : task.result ? '已记录 ' + pct(completion(task)) : '待记录';
   card.createDiv({ text: `${spec.minutes} 分钟 · ${status}`, cls: 'lp-muted' });
   if (task.result && !task.discarded) {
     const progress = card.createEl('progress', { attr: { max: '1', 'aria-label': spec.title + '完成比例' } });
@@ -291,7 +288,7 @@ function renderTask(view: Dashboard, parent: HTMLElement, d: Daily, task: Task, 
         button(actions, '拆分', () => splitForm(view, d, task, save), 'split');
     }
     if (canAdjust && !task.fixed) button(actions, '放弃', () => view.form('放弃任务', f => {
-      f.info(d.original ? '锁定任务继续保留在当日分母。' : '调整记录会保留。');
+      f.info(d.original ? '这项任务仍会计入已确认的计划。' : '调整记录会保留。');
       adjustmentReason(f);
     }, async f => save(adjust(d, task.id, { type: 'discard' }, f.value('reason')))), 'archive');
   }
