@@ -1,0 +1,9 @@
+{
+  "id": "lifepilot",
+  "name": "LifePilot",
+  "version": "1.0.7",
+  "minAppVersion": "1.8.7",
+  "description": "Plan your studies, record daily habits, and review progress offline.",
+  "author": "LifePilot",
+  "isDesktopOnly": false
+}

@@ -1,0 +1,23 @@
+{
+  "name": "lifepilot",
+  "version": "1.0.7",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=22" },
+  "scripts": {
+    "build": "node scripts/build.mjs",
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test tests/*.test.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "1.32.2",
+    "zod": "^4.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.27.0",
+    "obsidian": "1.14.4",
+    "tsx": "^4.0.0",
+    "typescript": "^5.9.0"
+  }
+}

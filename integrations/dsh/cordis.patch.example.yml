@@ -1,0 +1,17 @@
+- insert:
+    - id: lifepilot-mcp
+      name: '@deepseek-ai/dsh-mcp-client'
+      config:
+        serverName: lifepilot
+        transport: stdio
+        command: 'C:/Program Files/nodejs/node.exe'
+        args:
+          - 'D:/Apps/LifePilot/dist/dsh/main.mjs'
+          - '--root'
+          - 'D:/TestVault/LifePilot/Data'
+        failOnStartupError: true
+
+# 可选参数，追加到 args：
+# - '--proposals'
+# - '--reminder-state'
+# - 'D:/Apps/LifePilot/private-reminder-state'
